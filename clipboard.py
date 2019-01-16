@@ -4,10 +4,10 @@ import socket
 import sys
 from pathlib import Path
 
-from PySide2.QtCore import QStringListModel
+from PySide2.QtCore import QStringListModel, QStandardPaths
 from PySide2.QtGui import QClipboard
 from PySide2.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QListView, QLineEdit, \
-    QDesktopWidget, QHBoxLayout, QPushButton
+    QDesktopWidget, QHBoxLayout, QPushButton, QFileDialog
 
 _dir = Path(__file__).absolute().parent
 
@@ -16,14 +16,19 @@ class ClipboardManager:
     def __init__(self):
         self.clips = []
         self.clipboard_save_dir = _dir / "clip"
+        self.app_settings_file = Path(
+            QStandardPaths.writableLocation(QStandardPaths.GenericConfigLocation)) / "network_clipboard_settings.json"
+        if self.app_settings_file.exists():
+            self.clipboard_save_dir = Path(json.loads(self.app_settings_file.read_text())["clipboard_save_dir"])
+
         self.hostname = socket.gethostname()
         self.clipboard_save_file = self.clipboard_save_dir / f"{self.hostname}.clips.json"
-        self.last_clipboard_contents = ''
 
     def read_clips_on_start(self):
         for json_filepath in self.clipboard_save_dir.glob("*.clips.json"):
             with json_filepath.open() as f:
                 self.clips += json.load(f)
+        self.clips = list(set(self.clips))
         self.clips_model.setStringList(self.clips)
 
     def on_clip(self, mode):
@@ -31,14 +36,23 @@ class ClipboardManager:
         if mode == QClipboard.Mode.Clipboard:
             self.save_clipboard_contents_and_update_gui()
 
-    def pick_network_folder_hostname(self):
-        pass
+    def update_save_folder(self, new_save_folder):
+        new_save_folder_path = Path(new_save_folder)
+        if new_save_folder_path.exists():
+            self.app_settings_file.write_text(json.dumps(dict(clipboard_save_dir=new_save_folder)))
+            self.clipboard_save_dir = new_save_folder_path
+            self.clipboard_save_file = self.clipboard_save_dir / f"{self.hostname}.clips.json"
+
+    def pick_save_folder(self):
+        self.update_save_folder(QFileDialog.getExistingDirectory(self.window,
+                                                                      "Pick shared network folder to sync clipboards",
+                                                                      os.fspath(Path.home()), 0))
 
     def save_clipboard_contents_and_update_gui(self):
-        self.last_clipboard_contents = self.clipboard.text(QClipboard.Mode.Clipboard)
-        self.clips.insert(0, self.last_clipboard_contents)
+        last_clipboard_contents = self.clipboard.text(QClipboard.Mode.Clipboard)
+        self.clips.insert(0, last_clipboard_contents)
         self.clips_model.setStringList(self.clips)
-        print(f'new clipboard contents: {self.last_clipboard_contents}')
+        print(f'new clipboard contents: {last_clipboard_contents}')
         self.clipboard_save_dir.mkdir(parents=True, exist_ok=True)
         with open(self.clipboard_save_file, 'w') as f:
             json.dump(self.clips, f)
@@ -50,8 +64,9 @@ class ClipboardManager:
         self.layout = QVBoxLayout()
         self.clipboard_save_dir_line_widget = QLineEdit()
         self.clipboard_save_dir_line_widget.setText(os.fspath(self.clipboard_save_dir))
+        self.clipboard_save_dir_line_widget.textChanged.connect(self.update_save_folder)
         self.launch_file_dialog_button = QPushButton()
-        self.launch_file_dialog_button.clicked.connect(self.pick_network_folder_hostname)
+        self.launch_file_dialog_button.clicked.connect(self.pick_save_folder)
         self.clips_view = QListView()
         self.clips_model = QStringListModel()
         self.clips_view.setModel(self.clips_model)
