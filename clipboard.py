@@ -4,8 +4,9 @@ import socket
 import sys
 from pathlib import Path
 
+from PySide2 import QtWidgets
 from PySide2.QtCore import QStringListModel, QStandardPaths, QTimer
-from PySide2.QtGui import QClipboard
+from PySide2.QtGui import QClipboard, QIcon
 from PySide2.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QListView, QLineEdit, \
     QDesktopWidget, QHBoxLayout, QPushButton, QFileDialog
 
@@ -43,7 +44,7 @@ class ClipboardManager:
             self.app_settings_file.write_text(json.dumps(dict(clipboard_save_dir=new_save_folder)))
             self.clipboard_save_dir = new_save_folder_path
             self.clipboard_save_file = self.clipboard_save_dir / f"{self.hostname}.clips.json"
-
+            self.clipboard_save_dir_line_widget.setText(new_save_folder)
     def pick_save_folder(self):
         self.update_save_folder(QFileDialog.getExistingDirectory(self.window,
                                                                  "Pick shared network folder to sync clipboards",
@@ -67,6 +68,7 @@ class ClipboardManager:
         self.clipboard_save_dir_line_widget.setText(os.fspath(self.clipboard_save_dir))
         self.clipboard_save_dir_line_widget.textChanged.connect(self.update_save_folder)
         self.launch_file_dialog_button = QPushButton()
+        self.launch_file_dialog_button.setIcon(self.window.style().standardIcon(QtWidgets.QStyle.SP_DialogOpenButton))
         self.launch_file_dialog_button.clicked.connect(self.pick_save_folder)
         self.clips_view = QListView()
         self.clips_model = QStringListModel()
