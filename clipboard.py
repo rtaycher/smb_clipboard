@@ -4,7 +4,7 @@ import socket
 import sys
 from pathlib import Path
 
-from PySide2.QtCore import QStringListModel, QStandardPaths
+from PySide2.QtCore import QStringListModel, QStandardPaths, QTimer
 from PySide2.QtGui import QClipboard
 from PySide2.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout, QListView, QLineEdit, \
     QDesktopWidget, QHBoxLayout, QPushButton, QFileDialog
@@ -24,7 +24,8 @@ class ClipboardManager:
         self.hostname = socket.gethostname()
         self.clipboard_save_file = self.clipboard_save_dir / f"{self.hostname}.clips.json"
 
-    def read_clips_on_start(self):
+    def read_clips_from_files(self):
+        print('running read_clips_from_files')
         for json_filepath in self.clipboard_save_dir.glob("*.clips.json"):
             with json_filepath.open() as f:
                 self.clips += json.load(f)
@@ -45,8 +46,8 @@ class ClipboardManager:
 
     def pick_save_folder(self):
         self.update_save_folder(QFileDialog.getExistingDirectory(self.window,
-                                                                      "Pick shared network folder to sync clipboards",
-                                                                      os.fspath(Path.home()), 0))
+                                                                 "Pick shared network folder to sync clipboards",
+                                                                 os.fspath(Path.home()), 0))
 
     def save_clipboard_contents_and_update_gui(self):
         last_clipboard_contents = self.clipboard.text(QClipboard.Mode.Clipboard)
@@ -70,7 +71,7 @@ class ClipboardManager:
         self.clips_view = QListView()
         self.clips_model = QStringListModel()
         self.clips_view.setModel(self.clips_model)
-        self.read_clips_on_start()
+        self.read_clips_from_files()
         self.save_folders_label = QLabel("clipboard network saves folder")
         self.layout.addWidget(self.save_folders_label)
         line = QWidget()
@@ -81,6 +82,9 @@ class ClipboardManager:
         self.layout.addWidget(self.clips_view)
         self.window.setLayout(self.layout)
         self.clipboard.changed.connect(self.on_clip)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.read_clips_from_files)
+        self.timer.start(5*1000)
         self.window.resize(QDesktopWidget().availableGeometry(self.window).size() * 0.5)
         self.window.show()
         sys.exit(app.exec_())
